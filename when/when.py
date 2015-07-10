@@ -45,110 +45,206 @@ class While:
         pass
 
 
-IMMUTABLE_ATTRS = set(('year', 'month', 'day', 'hour', 'minute', 'second', 
-                       'microsecond'))
-
-
 class When(datetime.datetime):
     """ Python dates and times for humans.
+    
+        The API for the standard library datetime module is broken.  Datetimes 
+        are timezone-naive by default.  Datetime objects are entirely immutable,
+        including timezones, even though 5p in New York is the *same* time as 
+        2p in Los Angeles.  If my life depended on supplying a correct string 
+        format specifier to strftime without consulting the documentation, 
+        I'd start planning my funeral instead of even attempting.
         
-        >>> 
-        >>> 
+        ```when.When``` addresses these issues, making dates and times more
+        friendly and Pythonic.  Insomuch as possible, it maintains compatibility
+        with the standard library datetime object (in both a duck-typing sense
+        and an explicit ```isinstance```/```issubclass``` sense).
         
+        >>> earth_day = When(year=2015, month=4, day=22, hour=5, 
+        ...                  timezone='America/New_York')
+        >>> print(earth_day)
+        2015-04-22 05:00:00-04:00
+        >>> earth_day.timezone = 'America/Los_Angeles'
+        >>> print(earth_day)
+        2015-04-22 02:00:00-07:00
+        >>> earth_day.timezone
+        <DstTzInfo 'America/Los_Angeles' LMT-1 day, 16:07:00 STD>
+        >>> isinstance(earth_day, datetime.datetime)
+        True
+        >>> issubclass(When, datetime.datetime)
+        True
+        >>> earth_day.year, earth_day.day, earth_day.hour, earth_day.minute
+        (2015, 22, 2, 0)
+        >>> print(earth_day.utc)
+        2015-04-22 09:00:00+00:00
+        
+        ```when.When``` is a thin wrapper over a Python datetime object and
+        Pytz.  It proxies most attribute access to an underlying timezone-aware 
+        datetime object, and modifies constructors to handle timezone-awareness 
+        by default.  It is immutable in the sense that attributes cannot be 
+        modified that would change the unique instant the object represents
+        (put more technically, the UTC datetime is invariant), but timezones
+        are mutable and are treated as views.
     """
     
-    def __new__(cls, year, month, day, hour=0, minute=0, second=0, 
-                microsecond=0, timezone='utc', dst=False):
-        naive = datetime.datetime(year, month, day, hour, minute, 
-                                  second, microsecond)
-        local = timezones[timezone].localize(naive, dst)
-        datetime_dict = cls.datetime_to_dict(local, tzinfo=True)
-        return datetime.datetime.__new__(cls, **datetime_dict)
+    __immutables = set(('year', 'month', 'day', 'hour', 'minute', 'second', 
+                        'microsecond'))
+                        
+    def __new__(cls, *args, **kwargs):
+        """ We need to subclass from datetime.datetime to allow the following 
+            two conditions to be met:
         
+              1. issubclass(When, datetime.datetime) == True
+              2. isinstance(When(), datetime.datetime) == True
+        
+            However, because we will actually be proxying most attribute access 
+            to an underyling datetime object, it actually doesn't matter what 
+            we return here, as long as it is subclassed from datetime.
+        """
+        return datetime.datetime.__new__(cls, 1111, 2, 3, 4, 5, 6, 777777)
+    
     def __init__(self, year, month, day, hour=0, minute=0, second=0, 
                  microsecond=0, timezone='utc', dst=False):
-        self._timezone_string = timezone
-        self.utc = None
-
-    @staticmethod
-    def datetime_to_dict(datetime, tzinfo=False):
-        datetime_dict = {}
-        attrs = ('year', 'month', 'day', 'hour', 'minute', 'second', 
-                 'microsecond', 'tzinfo', )
-        for attr in attrs:
-            try:
-                datetime_dict[attr] = getattr(datetime, attr)
-            except AttributeError:
-                continue
-        if not tzinfo:
-            del datetime_dict['tzinfo']
-        return datetime_dict
+        naive = datetime.datetime(year, month, day, hour, minute, 
+                                  second, microsecond)
+        self.__datetime = timezones[timezone].localize(naive, dst)
+        self.__timezone = timezone
         
     @classmethod
     def from_datetime(cls, datetime, timezone, dst=False):
-        if datetime.tzinfo:
-            warning = 'Note, this datetime is not naive, and the tzinfo {} \
-                       associated with it is being ignored in \
-                       favor of {}.'.format(str(datetime.tzinfo), timezone)
-            warnings.warn(warning)
-        datetime_dict = cls.datetime_to_dict(datetime, tzinfo=False)
-        datetime_dict['timezone'] = timezone
-        datetime_dict['dst'] = dst
-        return cls(**datetime_dict)
+        """ Construct a When from a standard-library datetime and a timezone.
         
-    from_date = from_datetime
+            Note, any naive tzinfo supplied as part of the datetime will be 
+            ignored in favor of the ```timezone``` variable, and warning will 
+            be issued.
+            
+            >>> d = datetime.datetime(2015, 1, 1)
+            >>> When.from_datetime(d, 'utc')
+            datetime.datetime(2015, 1, 1, 0, 0, tzinfo=<UTC>)
+            >>> d = datetime.datetime(2015, 1, 1, tzinfo=timezones['America/New_York'])
+            >>> warnings.filterwarnings('error')
+            >>> When.from_datetime(d, 'utc')
+            Traceback (most recent call last):
+              File "/usr/lib/python3.4/doctest.py", line 1324, in __run
+                compileflags, 1), test.globs)
+              File "<doctest when.when.When.from_datetime[4]>", line 1, in <module>
+                When.from_datetime(d, 'utc')
+              File "/home/ubuntu/workspace/when/when/when.py", line 138, in from_datetime
+                warnings.warn(warning)
+            UserWarning: Note, this datetime is not naive, and the tzinfo America/New_York associated with it is being ignored in favor of the supplied timezone utc.
+            >>> warnings.filterwarnings('ignore')
+            >>> When.from_datetime(d, 'utc')
+            datetime.datetime(2015, 1, 1, 0, 0, tzinfo=<UTC>)
+            
+        """
+        if datetime.tzinfo:
+            warning = ('Note, this datetime is not naive, and the tzinfo {} '
+                       'associated with it is being ignored in '
+                       'favor of the supplied '
+                       'timezone {}.'.format(str(datetime.tzinfo), timezone))
+            warnings.warn(warning)
+        kwargs = cls.__extract_datetime_dict(datetime)
+        kwargs['timezone'] = timezone
+        kwargs['dst'] = dst
+        return cls(**kwargs)
+        
+    @classmethod
+    def __extract_datetime_dict(cls, datetime):
+        datetime_dict = {}
+        for attribute in cls.__immutables:
+            try:
+                datetime_dict[attribute] = getattr(datetime, attribute)
+            except:
+                continue
+        return datetime_dict
+
+    @property
+    def utc(self):
+        utc = getattr(self, '__utc', None)
+        if utc is None:
+            utc = self.__utc = self.__datetime.astimezone(timezones['utc'])
+        kwargs = self.__extract_datetime_dict(utc)
+        kwargs['timezone'] = 'utc'
+        return self.__class__(**kwargs)
     
     @classmethod
     def now(cls, timezone='utc'):
         naive = datetime.datetime.utcnow()
-        datetime_dict = cls.datetime_to_dict(naive, tzinfo=False)
-        datetime_dict['timezone'] = 'utc'
-        now = cls(**datetime_dict)
+        now = cls.from_datetime(naive, 'utc')
         now.timezone = timezone
         return now
     
-    """
-    def __getattr__(self, attr):
-        print('in __getattr__', attr)
-        if attr in IMMUTABLE_ATTRS:
-            return getattr(self, '_' + attr)
+    @property
+    def datetime(self):
+        return self.__datetime
+    
+    @property
+    def timezone(self):
+        return timezones[self.__timezone]
+    
+    @timezone.setter
+    def timezone(self, timezone):
+        self.__datetime = self.__datetime.astimezone(timezones[timezone])
+        self.__timezone = timezone
+        
+    def __getattr__(self, attribute):
+        # delegate to underlying datetime representation if it isn't defined
+        try:
+            value = self.__dict__[attribute]
+        except:
+            try:
+                value = getattr(self.__datetime, attribute)
+            except:
+                message = '"{}" has no attribute "{}".'.format(self.__class__,
+                                                               attribute)
+                raise AttributeError(message)
+        return value
+        
+    def __setattr__(self, attribute, value):
+        if attribute in self.__immutables:
+            raise AttributeError('Attribute "{}" is immutable.  Use the method '
+                                 '```replace``` instead.'.format(attribute))
         else:
-            return self.__dict__[attr]
+            super(When, self).__setattr__(attribute, value)
         
-    def __setattr__(self, attr, val):
-        print('in __setattr__', attr, val)
-        if attr in IMMUTABLE_ATTRS:
-            raise AttributeError('Attribute "{}" is immutable.  To modify \
-                                  this attribute, use the ```replace``` \
-                                  method.'.format(attr))
-        elif attr == 'timezone':
-            timezone = val
-            local = self.astimezone(timezones[timezone])
-            self._update_immutable_attrs_from_datetime(local)
-        else:
-            self.__dict__[attr] = val
-    """
-    
-    def _get_hour(self):
-        return self._hour
+    @property
+    def year(self):
+        return self.__datetime.year
         
-    def _set_hour(self, hour):
-        raise AttributeError('Attribute "hour" is immutable.')
+    @property
+    def day(self):
+        return self.__datetime.day
+    
+    @property
+    def hour(self):
+        return self.__datetime.hour
+    
+    @property
+    def minute(self):
+        return self.__datetime.minute
+    
+    @property
+    def second(self):
+        return self.__datetime.second
+    
+    @property
+    def microsecond(self):
+        return self.__datetime.microsecond
+            
+    def __dir__(self):
+        pass
+    
+    def __str__(self):
+        return str(self.__datetime)
+
+    def __repr__(self):
+        return repr(self.__datetime)
         
-    hour = property(_get_hour, _set_hour)
+    def __sub__(self, other):
+        pass
     
-    def _update_immutable_attrs_from_datetime(self, datetime):
-        for attr in IMMUTABLE_ATTRS:
-            setattr(self, '_' + attr, getattr(datetime, attr))
-    
-    def _get_timezone(self):
-        return timezones[self._timezone_string]
-    
-    def _set_timezone(self, timezone):
-        local = self.astimezone(timezones[timezone])
-        self._update_immutable_attrs_from_datetime(local)
-    
-    timezone = property(_get_timezone, _set_timezone)
+    def __add__(self, other):
+        pass
 
 
 def now(timezone='utc'):

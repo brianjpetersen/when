@@ -6,7 +6,8 @@ pass
 from . import (when, timezones, )
 
 
-__all__ = ('__version__', 'now', 'When', 'While', 'timezones')
+__all__ = ('__version__', '__where__', 'now', 'When', 'While', 'timezones')
+
 
 __where__ = os.path.dirname(os.path.abspath(__file__))
 
@@ -18,3 +19,5 @@ When = when.When
 While = when.While
 now = when.now
 timezones = timezones.timezones
+
+__doc__ = When.__doc__
