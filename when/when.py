@@ -2,56 +2,41 @@
 import datetime
 import time
 import warnings
-# third party libraries
 import collections
-import dateutil
+# third party libraries
 import pytz
 # first party libraries
-from . import (timezones, )
+from . import (timezones, while_, substitutions)
+
+
+While = while_.While
+
+
+__all__ = ('When', 'now', 'parse', )
 
 
 timezones = timezones.timezones
 
 
-class While:
-    """ An alternative to ```datetime.timedelta``` with intuitive attributes.
-        
-        While does not subclass ```datetime.timedelta```.  Instead, 
-    """
-
-    def __init__(self, years=0, months=0, days=0, hours=0, minutes=0, 
-                 seconds=0, milliseconds=0, microseconds=0):
-        pass
-
-    @classmethod
-    def from_timedelta(cls, timedelta):
-        pass
-    
-    @property
-    def timedelta(self):
-        pass
-    
-    def humanize(self):
-        pass
-
-    def __add__(self, other):
-        pass
-
-    def __sub__(self, other):
-        pass
-
-    def __div__(self, other):
-        pass
-
-    def __mul__(self, other):
-        pass
-    
-    def __abs__(self):
-        pass
-
-
 def _callable_attribute(value):
+    """ A wrapper object that returns itself when called.
     
+        This is useful for ensuring backwards compatibility with object methods
+        that really ought to be properties.
+        
+        >>> class Test:
+        ...     
+        ...     @property
+        ...     def property_and_method(self):
+        ...         return _callable_attribute(1)
+        ...
+        >>> test = Test()
+        >>> test.property_and_method
+        1
+        >>> test.property_and_method()
+        1
+        
+    """
     class Proxy(type(value)):
         
         def __new__(cls):
@@ -102,7 +87,7 @@ class When(datetime.datetime):
         by default.  It is immutable in the sense that attributes cannot be 
         modified that would change the unique instant the object represents
         (put more technically, the UTC datetime is invariant), but timezones
-        are mutable and are treated as views.
+        are mutable and are treated as views on the underlying instant.
     """
     
     __immutables = ('year', 'month', 'day', 'hour', 'minute', 'second', 
@@ -177,6 +162,67 @@ class When(datetime.datetime):
             yield getattr(utc, attribute)
     
     @classmethod
+    def fromordinal(cls, ordinal, timezone='utc', dst=False):
+        datetime = datetime.datetime.fromordinal(ordinal)
+        return cls.from_datetime(datetime, timezone, dst)
+    
+    from_ordinal = fromordinal
+        
+    @classmethod
+    def fromtimestamp(cls, timestamp, timezone='utc', dst=False):
+        datetime = datetime.datetime.fromtimestamp(timestamp)
+        return cls.from_datetime(datetime, timezone, dst)
+    
+    from_timestamp = fromtimestamp
+    
+    @classmethod
+    def utcfromtimestamp(cls, timestamp):
+        datetime = datetime.datetime.fromtimestamp(timestamp)
+        return cls.from_datetime(datetime, timezone='utc')
+        
+    utc_from_timestamp = utcfromtimestamp
+    
+    @property
+    def weekday(self):
+        return _callable_attribute(self.__datetime.weekday())
+        
+    @property
+    def tzinfo(self):
+        return self.__datetime.tzinfo
+        
+    @property
+    def utcoffset(self):
+        return _callable_attribute(self.__datetime.utcoffset())
+    
+    utc_offset = utcoffset
+    
+    @property
+    def dst(self):
+        return _callable_attribute(self.__datetime.dst())
+    
+    @property
+    def timestamp(self):
+        return _callable_attribute(self.__datetime.timestamp())
+        
+    @property
+    def toordinal(self):
+        return _callable_attribute(self.__datetime.toordinal())
+        
+    ordinal = to_ordinal = toordinal
+    
+    @property
+    def isoweekday(self):
+        return _callable_attribute(self.__datetime.isoweekday())
+        
+    iso_weekday = isoweekday
+        
+    @property
+    def isocalendar(self):
+        return _callable_attribute(self.__datetime.isocalendar())
+    
+    iso_calendar = isocalendar
+    
+    @classmethod
     def now(cls, timezone='utc'):
         """ Construct a When at this very instant.
         
@@ -198,6 +244,31 @@ class When(datetime.datetime):
         return now
         
     @classmethod
+    def utcnow(cls):
+        """ Construct a When at this very instant in the default UTC timezone.
+            
+        """
+        return _callable_attribute(cls.now())
+    
+    utc_now = utcnow
+    
+    def timetuple(self):
+        timetuple = self.__datetime.timetuple()
+        return _callable_attribute(timetuple)
+    
+    time_tuple = timetuple
+    
+    def utctimetuple(self):
+        timetuple = self.utc.__datetime.utctimetuple()
+        return _callable_attribute(timetuple)
+    
+    utc_time_tuple = utctimetuple
+    
+    def ctime(self):
+        ctime = self.__datetime.ctime()
+        return _callable_attribute(ctime)
+        
+    @classmethod
     def __extract_datetime_dict(cls, datetime):
         """ Convenience method that returns immutable When attributes as dict.
         
@@ -212,9 +283,9 @@ class When(datetime.datetime):
     
     @property
     def utc(self):
-        """ A convenience attribute to expose the When instant in UTC.
+        """ Exposes the When instant in UTC as an attribute.
         
-            This is cached upon first use.
+            This is cached upon first use given that it is invariant/immutable.
         
             >>> earth_day = When(year=2015, month=4, day=22, hour=5, 
             ...                  timezone='America/New_York')
@@ -231,18 +302,19 @@ class When(datetime.datetime):
         kwargs = self.__extract_datetime_dict(utc)
         kwargs['timezone'] = 'utc'
         return self.__class__(**kwargs)
-        
-    @classmethod
-    def replace(cls, *kwargs):
-        raise NotImplemented
+    
+    def replace(self, **kwargs):
+        datetime_dict = self.__extract_datetime_dict(self.__datetime)
+        datetime_dict.update(kwargs)
+        return self.__class__(**datetime_dict)
     
     @property
     def date(self):
-        raise NotImplemented
+        return _callable_attribute(self.__datetime.date())
     
     @property
     def today(self):
-        raise NotImplemented
+        return _callable_attribute(datetime.datetime.today())
         
     def __setattr__(self, attribute, value):
         """ Handle attribute assignment.
@@ -258,10 +330,20 @@ class When(datetime.datetime):
     
     @property
     def min(self):
+        """ The minimum datetime instant that can be expressed on this platform.
+            
+            This is a simple proxy to the standard library datetime module.
+            
+        """
         return datetime.datetime.min
         
     @property
     def max(self):
+        """ The maximum datetime instant that can be expressed on this platform.
+        
+            This is a simple proxy to the standard library datetime module.
+            
+        """
         return datetime.datetime.max
 
     @property
@@ -280,7 +362,9 @@ class When(datetime.datetime):
         """ Retrieve the mutable timezone.
         
         """
-        return timezones[self.__timezone]
+        timezone = timezones[self.__timezone]
+        timezone.name = timezones[self.__timezone]
+        return timezone
     
     @timezone.setter
     def timezone(self, timezone):
@@ -312,10 +396,12 @@ class When(datetime.datetime):
             >>> earth_day.isoformat
             '2015-04-22T00:00:00+00:00'
             >>> earth_day.isoformat()
-            
+            '2015-04-22T00:00:00+00:00'
         
         """
         return _callable_attribute(self.__datetime.isoformat())
+    
+    iso_format = isoformat
     
     @property
     def year(self):
@@ -429,34 +515,141 @@ class When(datetime.datetime):
     def __radd__(self, other):
         pass
     
-    def __getnewargs__(self):
-        """ Support efficient pickling by minimal attribute persistence.
+    def strftime(self, specifier):
+        return self.__datetime.strftime(specifier)
         
-            >>> import pickle
-            >>> now = When.now()
-            >>> now == pickle.loads(pickle.dumps(now))
-            True
-        
-        """
-        utc = self.utc
-        return tuple(utc) + ('utc', )
+    @classmethod
+    def strptime(cls, string, specifier, timezone='utc', dst=False):
+        datetime = datetime.datetime.strptime(string, specifier)
+        return cls.from_datetime(datetime, timezone, dst)
     
-    def __getstate__(self):
-        """ Support efficient pickling by minimal attribute persistence.
+    @property
+    def inflection(self):
+        """ Return the inflected ordinal associated with the current date.
+            
+            >>> earth_day = When(year=2015, month=4, day=22, hour=5, 
+            ...                  timezone='America/New_York')
+            >>> '{}{} day of the month'.format(earth_day.day, 
+            ...                                 earth_day.inflection)
+            '22nd day of the month'
+            
+        """
+        if self.day in set((1, 21, 31)):
+            return 'st'
+        if self.day in set((2, 22)):
+            return 'nd'
+        if self.day in set((3, 23)):
+            return 'rd'
+        return 'th'
+    
+    @property
+    def day_of_year(self):
+        """ The day of the year for this When instant.
+            
+            >>> earth_day = When(year=2015, month=4, day=22, hour=5, 
+            ...                  timezone='America/New_York')
+
+        """    
+        #    >>> earth_day.day_of_year
+        #    112
+            
         
-            >>> # see __getstate__ for testing
+        return self.timetuple.tm_yday
+    
+    def __format__(self, specifier):
+        """ Format a When instant as a string.
+        
+            Instead of having to refer back to a list of format directives
+            like strftime, this implementation relies on a reference date.  The
+            reference is the date of the American Declaration of Independence
+            at 1:02:03.012345PM in Philadelphia.
+            
+            >>> reference = When(year=1776, month=7, day=4, hour=13, minute=2,
+            ...                  second=3, microsecond=12345, 
+            ...                  timezone='America/New_York')
+            
+            The following substitutions are made:
+            
+            * 1776:         four-digit year
+            * 76:           two-digit year
+            * July:         full month name
+            * Jul:          abbreviated month name
+            * 07:           zero-padded two-digit month
+            * 7:            month
+            * 04:           zero-padded two-digit day
+            * 4:            day
+            * th:           ordinal (ie, July 4__th__ or February 2__nd__)
+            * Thu:          abbreviated weekday name
+            * Thursday:     full weekday name
+            * 01:           zero-padded two-digit hour (12-hour clock)
+            * 1:            hour (12-hour clock)
+            * 13:           zero-padded two-digit hour (24-hour clock)
+            * p:            AM/PM formatted as a single lowercase character
+            * PM:           AM/PM formatted as a two uppercase characters
+            * 02:           zero-padded two-digit minute
+            * 03:           zero-padded two-digit second
+            * 012:          zero-padded three-digit millisecond
+            * 12:           millisecond
+            * 012345:       zero-padded six-digit microsecond
+            * 12345:        microsecond
+            * '-04:00':     utc offset
+            * 'America/New_York': timezone name
+            
+            Here are some examples.
+            
+            >>> earth_day = When(year=2015, month=4, day=22, hour=5, minute=30,
+            ...                  second=59, microsecond=23,
+            ...                  timezone='America/Los_Angeles')
+            >>> # iso8601 format
+            >>> '{:1776-07-04T13:02:03.012345-04:00}'.format(earth_day)
+            '2015-04-22T05:30:59.000023-07:00'
+            >>> earth_day.iso_format()
+            '2015-04-22T05:30:59.000023-07:00'
+            
+            
+        """
+        return substitutions.in_string(specifier, self._format_substitutions)
+    
+    @property
+    def _format_substitutions(self):
+        """ Dynamically compute a set of substitutions that transform the 
+            reference date to the instant represented by this When.
+        
+            At some point, the substitution list and the regular expression 
+            in __format__ should probably be cached for performance.
         
         """
-        return {'timezone': self.__timezone}
-        
-    def __setstate__(self, state):
-        """ Support efficient pickling by minimal attribute persistence.
-        
-            >>> # see __getstate__ for testing
-        
-        """
-        utc = state['utc']
-        self.timezone = timezone
+        return collections.OrderedDict((
+                            ('1776', self.strftime('%Y')),
+                            ('76', self.strftime('%y')),
+                            ('13', self.strftime('%H')),
+                            ('012', self.strftime('%f')[:3]),
+                            ('12', self.strftime('%f')[:3].lstrip()),
+                            ('012345', self.strftime('%f')),
+                            ('12345', self.strftime('%f').lstrip()),
+                            ('-04:00', self.strftime('%z')),
+                            ('July', self.strftime('%B')),
+                            ('Jul', self.strftime('%b')),
+                            ('07', self.strftime('%m')),
+                            ('7', self.strftime('%m').lstrip()),
+                            ('04', self.strftime('%d')),
+                            ('4', self.strftime('%d').lstrip()),
+                            ('th', self.inflection),
+                            ('Thu', self.strftime('%a')),
+                            ('Thursday', self.strftime('%A')),
+                            ('01', self.strftime('%I')),
+                            ('1', self.strftime('%I').lstrip()),
+                            ('p', 'a' if self.hour < 12 else 'p'),
+                            ('PM', 'AM' if self.hour < 12 else 'PM'),
+                            ('P.M.', 'A.M.' if self.hour < 12 else 'P.M.'),
+                            ('p.m.', 'a.m.' if self.hour < 12 else 'p.m.'),
+                            ('02', self.strftime('%M')),
+                            ('03', self.strftime('%S')),
+                            ('America/New_York', self.timezone.name),
+                    ))
+    
+    def __parse__(self, string, specifier):
+        pass
     
     def __eq__(self, other):
         """ Returns equivalence against other When-like objects.
@@ -537,6 +730,11 @@ class When(datetime.datetime):
     # pickle-related
     
     def __getstate__(self):
+        """ Support pickling.
+        
+            >>> # see __reduce__ for testing
+        
+        """
         return {'timezone': self.__timezone}
         
     def __setstate__(self, state):
@@ -567,7 +765,8 @@ class When(datetime.datetime):
 
 
 def now(timezone='utc'):
-    """ Return a When object at this instant, with initial view set by ```timezone```.
+    """ Return a When object at this instant, with initial view set by 
+        ```timezone```.
         
     """
     return When.now(timezone)
@@ -578,7 +777,3 @@ def parse(datetime, specifier='iso8601', timezone='utc'):
         return When.from_iso8601_string(datetime, timezone)
     else:
         return When.from_parsed_string(datetime, specifier, timezone)
-
-
-def sleep(seconds):
-    time.sleep(seconds)
