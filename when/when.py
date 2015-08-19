@@ -109,17 +109,19 @@ class When(datetime.datetime):
         return datetime.datetime.__new__(cls, 1111, 2, 3, 4, 5, 6, 777777)
     
     def __init__(self, year, month, day, hour=0, minute=0, second=0, 
-                 microsecond=0, timezone='utc', dst=False):
+                 microsecond=0, timezone=None, dst=None):
         """ Initialize When instance.
         
         """
+        if timezone is None or timezone not in timezones:
+            raise ValueError('You must supply a valid timezone.')
         naive = datetime.datetime(year, month, day, hour, minute, 
                                   second, microsecond)
         self.__datetime = timezones[timezone].localize(naive, dst)
         self.__timezone = timezone
         
     @classmethod
-    def from_datetime(cls, datetime, timezone, dst=False):
+    def from_datetime(cls, datetime, timezone, dst=None):
         """ Construct a When from a standard-library datetime and a timezone.
         
             Note, any naive tzinfo supplied as part of the datetime will be 
@@ -162,14 +164,14 @@ class When(datetime.datetime):
             yield getattr(utc, attribute)
     
     @classmethod
-    def fromordinal(cls, ordinal, timezone='utc', dst=False):
+    def fromordinal(cls, ordinal, timezone, dst=None):
         datetime = datetime.datetime.fromordinal(ordinal)
         return cls.from_datetime(datetime, timezone, dst)
     
     from_ordinal = fromordinal
         
     @classmethod
-    def fromtimestamp(cls, timestamp, timezone='utc', dst=False):
+    def fromtimestamp(cls, timestamp, timezone, dst=None):
         datetime = datetime.datetime.fromtimestamp(timestamp)
         return cls.from_datetime(datetime, timezone, dst)
     
@@ -381,7 +383,8 @@ class When(datetime.datetime):
             <DstTzInfo 'America/Los_Angeles' LMT-1 day, 16:07:00 STD>
         
         """
-        self.__datetime = self.__datetime.astimezone(timezones[timezone])
+        tz = timezones[timezone]
+        self.__datetime = tz.normalize(self.__datetime.astimezone(tz))
         self.__timezone = timezone
     
     @property
@@ -407,7 +410,7 @@ class When(datetime.datetime):
     def year(self):
         """ Immutable year attribute.
         
-            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333)
+            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333, timezone='utc')
             >>> sometime.year
             9999
         
@@ -418,7 +421,7 @@ class When(datetime.datetime):
     def month(self):
         """ Immutable month attribute.
         
-            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333)
+            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333, timezone='utc')
             >>> sometime.month
             8
         
@@ -429,7 +432,7 @@ class When(datetime.datetime):
     def day(self):
         """ Immutable day attribute.
         
-            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333)
+            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333, timezone='utc')
             >>> sometime.day
             7
         
@@ -440,7 +443,7 @@ class When(datetime.datetime):
     def hour(self):
         """ Immutable hour attribute.
         
-            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333)
+            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333, timezone='utc')
             >>> sometime.hour
             6
         
@@ -451,7 +454,7 @@ class When(datetime.datetime):
     def minute(self):
         """ Immutable minute attribute.
         
-            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333)
+            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333, timezone='utc')
             >>> sometime.minute
             5
         
@@ -462,7 +465,7 @@ class When(datetime.datetime):
     def second(self):
         """ Immutable second attribute.
         
-            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333)
+            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333, timezone='utc')
             >>> sometime.second
             4
         
@@ -473,7 +476,7 @@ class When(datetime.datetime):
     def microsecond(self):
         """ Immutable microsecond attribute.
         
-            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333)
+            >>> sometime = When(9999, 8, 7, 6, 5, 4, 333333, timezone='utc')
             >>> sometime.microsecond
             333333
         
@@ -483,7 +486,7 @@ class When(datetime.datetime):
     def __str__(self):
         """ Return a string representation of the When instance.
             
-            >>> str(When(2015, 1, 2, 3, 4, 5))
+            >>> str(When(2015, 1, 2, 3, 4, 5, timezone='utc'))
             '2015-01-02 03:04:05+00:00'
             
         """
@@ -492,7 +495,7 @@ class When(datetime.datetime):
     def __repr__(self):
         """ Return a string that can be used to reproduce this When instance.
             
-            >>> repr(When(2015, 1, 2, 3, 4, 5, 666666))
+            >>> repr(When(2015, 1, 2, 3, 4, 5, 666666, timezone='utc'))
             "When(2015, 1, 2, 3, 4, 5, 666666, 'UTC')"
             
         """
@@ -519,7 +522,7 @@ class When(datetime.datetime):
         return self.__datetime.strftime(specifier)
         
     @classmethod
-    def strptime(cls, string, specifier, timezone='utc', dst=False):
+    def strptime(cls, string, specifier, timezone, dst=None):
         datetime = datetime.datetime.strptime(string, specifier)
         return cls.from_datetime(datetime, timezone, dst)
     
@@ -593,6 +596,8 @@ class When(datetime.datetime):
             * 012345:       zero-padded six-digit microsecond
             * 12345:        microsecond
             * '-04:00':     utc offset
+            * '-04':        utc offset
+            * '-0400':      utc offset
             * 'America/New_York': timezone name
             
             Here are some examples.
@@ -605,7 +610,7 @@ class When(datetime.datetime):
             '2015-04-22T05:30:59.000023-07:00'
             >>> earth_day.iso_format()
             '2015-04-22T05:30:59.000023-07:00'
-            
+            >>> earth_day.
             
         """
         return substitutions.in_string(specifier, self._format_substitutions)
@@ -621,31 +626,33 @@ class When(datetime.datetime):
         """
         return collections.OrderedDict((
                             ('1776', self.strftime('%Y')),
-                            ('76', self.strftime('%y')),
-                            ('13', self.strftime('%H')),
-                            ('012', self.strftime('%f')[:3]),
-                            ('12', self.strftime('%f')[:3].lstrip()),
                             ('012345', self.strftime('%f')),
                             ('12345', self.strftime('%f').lstrip()),
-                            ('-04:00', self.strftime('%z')),
+                            ('012', self.strftime('%f')[:3]),
+                            ('76', self.strftime('%y')),
+                            ('13', self.strftime('%H')),
+                            ('12', self.strftime('%f')[:3].lstrip()),
+                            ('-04:00', '{}:{}'.format(self.strftime('%z')[:-2],
+                                                      self.strftime('%z')[-2:])),
+                            ('-0400', self.strftime('%z')),
                             ('July', self.strftime('%B')),
                             ('Jul', self.strftime('%b')),
-                            ('07', self.strftime('%m')),
-                            ('7', self.strftime('%m').lstrip()),
-                            ('04', self.strftime('%d')),
-                            ('4', self.strftime('%d').lstrip()),
-                            ('th', self.inflection),
-                            ('Thu', self.strftime('%a')),
-                            ('Thursday', self.strftime('%A')),
                             ('01', self.strftime('%I')),
+                            ('07', self.strftime('%m')),
+                            ('04', self.strftime('%d')),
+                            ('02', self.strftime('%M')),
+                            ('03', self.strftime('%S')),
+                            ('4', self.strftime('%d').lstrip()),
+                            ('7', self.strftime('%m').lstrip()),
                             ('1', self.strftime('%I').lstrip()),
-                            ('p', 'a' if self.hour < 12 else 'p'),
+                            ('America/New_York', self.timezone.name),
+                            ('Thursday', self.strftime('%A')),
+                            ('Thu', self.strftime('%a')),
+                            ('th', self.inflection),
                             ('PM', 'AM' if self.hour < 12 else 'PM'),
                             ('P.M.', 'A.M.' if self.hour < 12 else 'P.M.'),
                             ('p.m.', 'a.m.' if self.hour < 12 else 'p.m.'),
-                            ('02', self.strftime('%M')),
-                            ('03', self.strftime('%S')),
-                            ('America/New_York', self.timezone.name),
+                            ('p', 'a' if self.hour < 12 else 'p'),
                     ))
     
     def __parse__(self, string, specifier):
@@ -654,7 +661,8 @@ class When(datetime.datetime):
     def __eq__(self, other):
         """ Returns equivalence against other When-like objects.
         
-            >>> When(2015, 1, 1) == When(2015, 1, 1)
+            >>> When(2015, 1, 1, timezone='utc') == \
+                When(2015, 1, 1, timezone='utc')
             True
             >>> new_york = When(2015, 1, 1, 12, timezone='America/New_York')
             >>> los_angeles = When(2015, 1, 1, 9, timezone='America/Los_Angeles')
@@ -667,7 +675,8 @@ class When(datetime.datetime):
     def __ne__(self, other):
         """ Returns non-equivalence against other When-like objects.
         
-            >>> When(2015, 1, 1) != When(2015, 12, 31)
+            >>> When(2015, 1, 1, timezone='utc') != \
+                When(2015, 12, 31, timezone='utc')
             True
             
         """
@@ -676,7 +685,8 @@ class When(datetime.datetime):
     def __gt__(self, other):
         """ Returns greater than operator against other When-like objects.
         
-            >>> When(2015, 1, 1) > When(2015, 12, 31)
+            >>> When(2015, 1, 1, timezone='utc') > \
+                When(2015, 12, 31, timezone='utc')
             False
             
         """
@@ -685,7 +695,8 @@ class When(datetime.datetime):
     def __ge__(self, other):
         """ Returns greater than or equal operator against When-like objects.
         
-            >>> When(2015, 1, 1) >= When(2015, 1, 1)
+            >>> When(2015, 1, 1, timezone='utc') >= \
+                When(2015, 1, 1, timezone='utc')
             True
             
         """
@@ -694,7 +705,8 @@ class When(datetime.datetime):
     def __lt__(self, other):
         """ Returns less than operator against other When-like objects.
         
-            >>> When(2015, 1, 1) < When(2015, 1, 1)
+            >>> When(2015, 1, 1, timezone='utc') < \
+                When(2015, 1, 1, timezone='utc')
             False
             
         """
@@ -703,7 +715,8 @@ class When(datetime.datetime):
     def __le__(self, other):
         """ Returns less than or equal operator against When-like objects.
         
-            >>> When(2015, 1, 1) <= When(2015, 1, 1)
+            >>> When(2015, 1, 1, timezone='utc') <= \
+                When(2015, 1, 1, timezone='utc')
             True
             
         """
