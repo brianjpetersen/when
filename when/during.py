@@ -21,10 +21,10 @@ class Timer(object):
     def tic(self):
         self.awhile = None
         self.stopped = None
-        self.started = when.When.now()
+        self.started = when.now()
         
     def toc(self):
-        self.stopped = when.When.now()
+        self.stopped = when.now()
         self.awhile = self.stopped - self.started
         return self.awhile
 

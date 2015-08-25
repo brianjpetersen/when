@@ -11,10 +11,8 @@ __all__ = ('While', )
 
 class While(object):
     """ An alternative to ```datetime.timedelta``` with intuitive attributes.
-    
-        
-        
-        While does not subclass ```datetime.timedelta```.  Instead, 
+
+        pass
     """
     
     conversions = {} # to seconds
@@ -28,17 +26,20 @@ class While(object):
     
     def __init__(self, days=0, hours=0, minutes=0, seconds=0, milliseconds=0, 
                  microseconds=0):
-        self.__seconds = days*self.conversions['days'] + \
-                         hours*self.conversions['hours'] + \
-                         minutes*self.conversions['minutes'] + \
-                         seconds*self.conversions['seconds'] + \
-                         milliseconds*self.conversions['milliseconds'] + \
-                         microseconds*self.conversions['microseconds']
+        self._seconds = days*self.conversions['days'] + \
+                        hours*self.conversions['hours'] + \
+                        minutes*self.conversions['minutes'] + \
+                        seconds*self.conversions['seconds'] + \
+                        milliseconds*self.conversions['milliseconds'] + \
+                        microseconds*self.conversions['microseconds']
 
     @classmethod
     def from_timedelta(cls, timedelta):
         return cls(seconds=timedelta.total_seconds())
-    
+
+    def to(self, *units):
+        pass
+
     @property
     def timedelta(self):
         return datetime.timedelta(seconds=self.seconds)
@@ -77,11 +78,9 @@ class While(object):
     
     def __getattr__(self, name):
         try:
-            return self.__seconds/self.conversions[name]
+            return self._seconds/self.conversions[name]
         except KeyError:
             raise AttributeError('Attribute {} does not exist.'.format(name))
-    
-    
     
     def __add__(self, other):
         return self.__class__(seconds=(self.seconds + other.seconds))
