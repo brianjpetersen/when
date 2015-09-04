@@ -88,3 +88,4 @@ utc = UTC = pytz.utc
 timezones = CaseInsensitiveDict()
 for name in pytz.all_timezones:
     timezones[name] = pytz.timezone(name)
+    timezones[name].name = name

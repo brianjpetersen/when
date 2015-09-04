@@ -14,7 +14,6 @@ class While(object):
 
         pass
     """
-    
     conversions = {} # to seconds
     conversions['microseconds'] = 1e-6
     conversions['milliseconds'] = 1e-3
@@ -37,17 +36,17 @@ class While(object):
     def from_timedelta(cls, timedelta):
         return cls(seconds=timedelta.total_seconds())
 
-    def to(self, *units):
-        pass
-
     @property
     def timedelta(self):
         return datetime.timedelta(seconds=self.seconds)
     
+    """
     def __format__(self, specifier):
         pass
-   
-    """
+    
+    def to(self, *units):
+        pass
+    
     @staticmethod
     def _tensify(seconds, description):
         if seconds < 0:
@@ -78,22 +77,31 @@ class While(object):
     
     def __getattr__(self, name):
         try:
-            return self._seconds/self.conversions[name]
+            return self._seconds/float(self.conversions[name])
         except KeyError:
             raise AttributeError('Attribute {} does not exist.'.format(name))
     
     def __add__(self, other):
-        return self.__class__(seconds=(self.seconds + other.seconds))
+        if isinstance(other, While):
+            return self.__class__(seconds=(self.seconds + other.seconds))
+        elif isinstance(other, datetime.timedelta):
+            return self.__class__(seconds=(self.seconds + other.total_seconds()))
+        else:
+            return NotImplemented
+
+    def __radd__(self, other):
+        if other == 0:
+            return self
+        else:
+            return self.__add__(other)
 
     def __sub__(self, other):
-        return self.__class__(seconds=(self.seconds - other.seconds))
+        if isinstance(other, While):
+            return self.__class__(seconds=(self.seconds - other.seconds))
+        elif isinstance(other, datetime.timedelta):
+            return self.__class__(seconds=(self.seconds - other.total_seconds()))
+        else:
+            return NotImplemented
 
-    def __div__(self, other):
-        return self.__class__(seconds=self.seconds/other)
-
-    def __mul__(self, other):
-        return self.__class__(seconds=self.seconds*other)
-    
     def __abs__(self):
         return self.__class__(seconds=abs(self.seconds))
-

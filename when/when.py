@@ -943,7 +943,75 @@ class When(object):
             
         """
         return self._comparison_tuple >= other._comparison_tuple
-
+    
+    # artihmetic
+    
+    def __add__(self, other):
+        """ 
+        
+            >>> earth_day = When(year=2015, month=4, day=22, hour=5, 
+            ...                  timezone='America/New_York')
+            >>> day_after = earth_day + While(days=1)
+            >>> print(day_after)
+            2015-04-23 05:00:00-04:00
+        
+        """
+        cls = self.__class__
+        if isinstance(other, While):
+            when = cls.from_datetime(
+                self._utc.replace(tzinfo=None) + other.timedelta, 'utc'
+            )
+            when.timezone = self.timezone.name
+            return when
+        elif isinstance(other, datetime.timedelta):
+            when = cls.from_datetime(
+                self._utc.replace(tzinfo=None) + other, 'utc'
+            )
+            when.timezone = self.timezone.name
+            return when
+        else:
+            return NotImplemented
+    
+    def __radd__(self, other):
+        if other == 0:
+            return self
+        else:
+            return self.__add__(other)
+            
+    def __sub__(self, other):
+        """
+        
+            >>> earth_day = When(year=2015, month=4, day=22, hour=5, 
+            ...                  timezone='America/New_York')
+            >>> day_before = earth_day - While(days=1)
+            >>> print(day_before)
+            2015-04-21 05:00:00-04:00
+            >>> (earth_day - day_before).days
+            1.0
+            >>> (earth_day - day_before).hours
+            24.0
+        
+        """
+        cls = self.__class__
+        if isinstance(other, While):
+            when = cls.from_datetime(
+                self._utc.replace(tzinfo=None) - other.timedelta, 'utc'
+            )
+            when.timezone = self.timezone.name
+            return when
+        elif isinstance(other, datetime.timedelta):
+            when = cls.from_datetime(
+                self._utc.replace(tzinfo=None) - other, 'utc'
+            )
+            when.timezone = self.timezone.name
+            return when
+        elif isinstance(other, When):
+            return While.from_timedelta(
+                self._utc.replace(tzinfo=None) - other._utc.replace(tzinfo=None)
+            )
+        else:
+            return NotImplemented
+    
     # representation
 
     def __str__(self):
