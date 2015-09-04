@@ -102,6 +102,20 @@ class While(object):
             return self.__class__(seconds=(self.seconds - other.total_seconds()))
         else:
             return NotImplemented
+            
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            cls = self.__class__
+            return cls(seconds=self.seconds*other)
+        else:
+            return NotImplemented
+
+    def __div__(self, other):
+        if isinstance(other, (int, float)):
+            cls = self.__class__
+            return cls(seconds=self.seconds/other)
+        else:
+            return NotImplemented
 
     def __abs__(self):
         return self.__class__(seconds=abs(self.seconds))
