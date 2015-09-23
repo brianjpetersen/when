@@ -39,6 +39,9 @@ class While(object):
     @property
     def timedelta(self):
         return datetime.timedelta(seconds=self.seconds)
+        
+    def __repr__(self):
+        return '{}(seconds={})'.format(self.__class__.__name__, self.seconds)
     
     """
     def __format__(self, specifier):
